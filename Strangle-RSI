@@ -1,0 +1,43 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Tradex21
+
+//@version=5
+indicator( title = "Strangle_VM_RSI" , overlay = false )
+
+
+
+// spot_ = input.symbol ( "BANKNIFTY" , title = "Spot Symbol" )
+spot_ = input.string ( "BANKNIFTY" , title = "Spot Symbol" , options = ["BANKNIFTY","NIFTY","FINNIFTY","MIDCAP"] )
+
+// spot =  spot_ == "NSE:BANKNIFTY1!" ? "NSE:BANKNIFTY" : spot_ == "NSE:NIFTY1!" ? "NSE:NIFTY" : spot_ == "NSE:FINNIFTY1!" ? "NSE:FINNIFTY" : spot_ == "NSE:CNXFINANCE" ? "NSE:FINNIFTY" : spot_ == "NSE:MIDCPNIFTY1!" ? "NSE:MIDCPNIFTY" : spot_ == "NSE:CNXMIDCAP" ? "NSE:MIDCPNIFTY" : spot_
+spot =  spot_ == "BANKNIFTY" ? "NSE:BANKNIFTY" : spot_ == "NIFTY" ? "NSE:NIFTY" : spot_ == "FINNIFTY" ? "NSE:CNXFINANCE" :  "NSE:CNXMIDCAP" 
+
+
+// spot = input.symbol ( "BANKNIFTY" , title = "Spot Symbol" )
+strike_interval = input.int ( 100 , title = "Strike Interval" )
+
+_day = input.string ( "18" , title = "Exp Day", inline="s1" )
+_month = input.string ( "09" , title = "M" , inline="s1")
+_year = input.string ( "24" , title = "Y" , inline="s1")
+ 
+
+strangle_call_strike = input.int ( 52100 , title = "Strangle Call Strike" ,  group = "Plot Strangle"  )
+strangle_put_strike = input.int ( 51700 , title = "Strangle Put Strike" ,  group = "Plot Strangle"  )
+
+
+rsi_len = input.int( 2 , title = "RSI Length" , group = "RSI on Straddle" )
+
+screener_func() =>
+    [ close ]
+
+
+
+[ call_close ] = ( request.security( spot_+_year+_month+_day+"C"+str.tostring(strangle_call_strike) , timeframe.period , screener_func() ) )
+[ put_close ] = ( request.security( spot_+_year+_month+_day+"P"+str.tostring(strangle_put_strike) , timeframe.period , screener_func() ) )
+
+straddle_close = call_close + put_close
+
+
+rsiValue = ta.rsi(straddle_close, rsi_len)
+rsiPlot = plot(rsiValue, "RSI", color=#7E57C2)
+
