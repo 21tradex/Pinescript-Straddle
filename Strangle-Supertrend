@@ -1,0 +1,85 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Tradex21
+
+//@version=5
+indicator( title = "Strangle_VM_ST" , overlay = false )
+
+
+
+// spot_ = input.symbol ( "BANKNIFTY" , title = "Spot Symbol" )
+spot_ = input.string ( "BANKNIFTY" , title = "Spot Symbol" , options = ["BANKNIFTY","NIFTY","FINNIFTY","MIDCAP"] )
+
+// spot =  spot_ == "NSE:BANKNIFTY1!" ? "NSE:BANKNIFTY" : spot_ == "NSE:NIFTY1!" ? "NSE:NIFTY" : spot_ == "NSE:FINNIFTY1!" ? "NSE:FINNIFTY" : spot_ == "NSE:CNXFINANCE" ? "NSE:FINNIFTY" : spot_ == "NSE:MIDCPNIFTY1!" ? "NSE:MIDCPNIFTY" : spot_ == "NSE:CNXMIDCAP" ? "NSE:MIDCPNIFTY" : spot_
+spot =  spot_ == "BANKNIFTY" ? "NSE:BANKNIFTY" : spot_ == "NIFTY" ? "NSE:NIFTY" : spot_ == "FINNIFTY" ? "NSE:CNXFINANCE" :  "NSE:CNXMIDCAP" 
+
+
+// spot = input.symbol ( "BANKNIFTY" , title = "Spot Symbol" )
+strike_interval = input.int ( 100 , title = "Strike Interval" )
+strike_number = 19 
+_day = input.string ( "18" , title = "Exp Day", inline="s1" )
+_month = input.string ( "09" , title = "M" , inline="s1")
+_year = input.string ( "24" , title = "Y" , inline="s1")
+ 
+
+strangle_call_strike = input.int ( 52100 , title = "Strangle Call Strike" ,  group = "Plot Strangle"  )
+strangle_put_strike = input.int ( 51700 , title = "Strangle Put Strike" ,  group = "Plot Strangle"  )
+
+
+st_period = input.int ( 10 , title = "Supertrend Period" , group = "ST on Straddle" )
+st_factor = input.int ( 3 , title = "Supertrend Factor" , group = "ST on Straddle" )
+
+colorUp = input.color(#00ffbb, title="Up Color")
+colorDown = input.color(#ff1100, title="Down Color")
+
+calculateATR(source, atrLength) =>
+    highestHigh = ta.highest(source, atrLength)
+    lowestLow = ta.lowest(source, atrLength)
+    trueRange = na(highestHigh[1]) ? highestHigh - lowestLow : math.max(highestHigh - lowestLow, math.abs(highestHigh - source[1]), math.abs(lowestLow - source[1]))
+    ta.rma(trueRange, atrLength)
+
+// Function to calculate Supertrend
+calculateSupertrend(factor, atrPeriod, source) =>
+    priceSource = source
+    atr = calculateATR(source, atrPeriod)
+    upperBand = priceSource + factor * atr
+    lowerBand = priceSource - factor * atr
+    prevLowerBand = nz(lowerBand[1])
+    prevUpperBand = nz(upperBand[1])
+    lowerBand := lowerBand > prevLowerBand or source[1] < prevLowerBand ? lowerBand : prevLowerBand
+    upperBand := upperBand < prevUpperBand or source[1] > prevUpperBand ? upperBand : prevUpperBand
+    int trendDirection = na
+    float supertrendValue = na
+    prevSupertrend = supertrendValue[1]
+    if na(atr[1])
+        trendDirection := 1
+    else if prevSupertrend == prevUpperBand
+        trendDirection := source > upperBand ? -1 : 1
+    else
+        trendDirection := source < lowerBand ? 1 : -1
+    supertrendValue := trendDirection == -1 ? lowerBand : upperBand
+    [supertrendValue, trendDirection]
+
+
+strike_arr  = array.new_int(0)
+screener_func() =>
+    [ close , open , high , low  ]
+
+
+
+[ call_close , call_open , call_high , call_low ] = ( request.security( spot_+_year+_month+_day+"C"+str.tostring(strangle_call_strike) , timeframe.period , screener_func() ) )
+[ put_close , put_open , put_high , put_low ] = ( request.security( spot_+_year+_month+_day+"P"+str.tostring(strangle_put_strike) , timeframe.period , screener_func() ) )
+
+straddle_high  =  math.max ( (call_high + put_low) , (call_low+put_high) )
+straddle_low  =  math.min ( (call_high + put_low) , (call_low+put_high) )
+
+
+
+straddle_open = call_open + put_open
+
+straddle_close = call_close + put_close
+
+
+[rsiSupertrend, trendDirection] = calculateSupertrend(st_factor, st_period, straddle_close)
+plotcandle (  straddle_open , straddle_high , straddle_low , straddle_close ,  title = "Straddle" , color = straddle_close > straddle_open ? color.green : color.red )
+supertrendPlot = plot(rsiSupertrend, color = trendDirection == -1 ? colorUp : colorDown, title="Supertrend")
+
